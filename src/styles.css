@@ -1,0 +1,34 @@
+/*
+ * Design tokens for dt-vue.
+ *
+ * Import once, anywhere in your app:
+ *
+ *   import 'dt-vue/styles.css'
+ *
+ * Re-theme by overriding any token on :root, or on any ancestor element
+ * to scope a different theme to part of the page.
+ *
+ * Only brand colours are tokenised. Neutral greys use plain Tailwind
+ * utilities, which exist in every Tailwind install.
+ */
+:root {
+  /* Primary accent: active controls, checkboxes, sort hover. */
+  --dt-accent: #2f6f74;
+
+  /* Darker accent for text and the active pagination button. */
+  --dt-accent-strong: #2b6569;
+
+  /* Foreground used on top of --dt-accent-strong. */
+  --dt-accent-fg: #ffffff;
+
+  /* Selected rows and visual group headings. */
+  --dt-accent-wash: rgb(87 151 146 / 0.1);
+
+  /* Focus states on inputs and selects. */
+  --dt-focus-border: #7fbfb0;
+  --dt-focus-ring: rgb(127 191 176 / 0.2);
+
+  /* Secondary action colour: the Export button. */
+  --dt-action: #86bc7c;
+  --dt-action-fg: #ffffff;
+}
