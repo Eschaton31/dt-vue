@@ -142,33 +142,45 @@ through amber to green; pass your own `colors` array for anything else.
 
 ## Table props
 
-| Prop             | Type                 | Default                 | Description                                                      |
-| ---------------- | -------------------- | ----------------------- | ---------------------------------------------------------------- |
-| `data`           | `Array`              | `[]`                    | Row objects.                                                     |
-| `title`          | `String`             | `''`                    | Heading, and the default export filename.                        |
-| `locale`         | `String`             | runtime locale          | Applied to every number and date.                                |
-| `dateFormat`     | `Object\|Function`   | medium date             | `Intl.DateTimeFormatOptions`, or `(date) => string`.             |
-| `numberFormat`   | `Object`             | `{}`                    | `Intl.NumberFormatOptions` for `number` columns.                 |
-| `labels`         | `Object`             | English                 | Override any UI string.                                          |
-| `totals`         | `Boolean`            | `false`                 | Totals row for numeric and min/max date columns.                 |
-| `bordered`       | `Boolean`            | `false`                 | Thin border under every row.                                     |
-| `mono`           | `Boolean`            | `false`                 | Monospace table text.                                            |
-| `loading`        | `Boolean`            | `false`                 | Loading placeholder row.                                         |
-| `rows`           | `Number`             | `10`                    | Page size. Reactive.                                             |
-| `pageSizes`      | `Array`              | `[10,25,50,75,100]`     | Page-size options.                                               |
-| `searchable`     | `Boolean`            | `true`                  | Show the global search box.                                      |
-| `searchDebounce` | `Number`             | `200`                   | Milliseconds before filtering.                                   |
-| `sortField`      | `String`             | `null`                  | Externally controlled sort column.                               |
-| `sortOrder`      | `Number`             | `1`                     | `1` ascending, `-1` descending.                                  |
-| `groupBy`        | `Object`             | `null`                  | `{ Label: ['col'] }` — renders a "Group by Label" button.        |
-| `groupRowsBy`    | `String`             | `null`                  | Visual-only heading row whenever this field changes.             |
-| `subRows`        | `String\|Function`   | `'children'`            | Where nested rows live.                                          |
-| `expandable`     | `Boolean`            | `true`                  | Expander column when the data nests. Set `false` to hide it.     |
-| `rowId`          | `String`             | `null`                  | Row identity; also what `v-model` holds.                         |
-| `selectable`     | `Boolean`            | `false`                 | Checkbox column, click, shift-click and drag selection.          |
-| `exportable`     | `Boolean`            | `false`                 | Show the built-in Export button.                                 |
-| `exportFilename` | `String`             | `title`                 | Export filename, without extension.                              |
-| `sheetName`      | `String`             | `'Data'`                | Worksheet name.                                                  |
+| Prop              | Type                 | Default                 | Description                                                      |
+| ----------------- | -------------------- | ----------------------- | ---------------------------------------------------------------- |
+| `data`            | `Array`              | `[]`                    | Row objects.                                                     |
+| `title`           | `String`             | `''`                    | Heading, and the default export filename.                        |
+| `locale`          | `String`             | runtime locale          | Applied to every number and date.                                |
+| `dateFormat`      | `Object\|Function`   | medium date             | `Intl.DateTimeFormatOptions`, or `(date) => string`.             |
+| `numberFormat`    | `Object`             | `{}`                    | `Intl.NumberFormatOptions` for `number` columns.                 |
+| `labels`          | `Object`             | English                 | Override any UI string.                                          |
+| `totals`          | `Boolean`            | `false`                 | Totals row for numeric and min/max date columns.                 |
+| `bordered`        | `Boolean`            | `false`                 | Thin border under every row.                                     |
+| `mono`            | `Boolean`            | `false`                 | Monospace table text.                                            |
+| `overflowVisible` | `Boolean`            | `false`                 | No overflow clipping or scroll wrapper. See below.               |
+| `loading`         | `Boolean`            | `false`                 | Loading placeholder row.                                         |
+| `rows`            | `Number`             | `10`                    | Page size. Reactive.                                             |
+| `pageSizes`       | `Array`              | `[10,25,50,75,100]`     | Page-size options.                                               |
+| `searchable`      | `Boolean`            | `true`                  | Show the global search box.                                      |
+| `searchDebounce`  | `Number`             | `200`                   | Milliseconds before filtering.                                   |
+| `sortField`       | `String`             | `null`                  | Externally controlled sort column.                               |
+| `sortOrder`       | `Number`             | `1`                     | `1` ascending, `-1` descending.                                  |
+| `groupBy`         | `Object`             | `null`                  | `{ Label: ['col'] }` — renders a "Group by Label" button.        |
+| `groupRowsBy`     | `String`             | `null`                  | Visual-only heading row whenever this field changes.             |
+| `subRows`         | `String\|Function`   | `'children'`            | Where nested rows live.                                          |
+| `expandable`      | `Boolean`            | `true`                  | Expander column when the data nests. Set `false` to hide it.     |
+| `rowId`           | `String`             | `null`                  | Row identity; also what `v-model` holds.                         |
+| `selectable`      | `Boolean`            | `false`                 | Checkbox column, click, shift-click and drag selection.          |
+| `exportable`      | `Boolean`            | `false`                 | Show the built-in Export button.                                 |
+| `exportFilename`  | `String`             | `title`                 | Export filename, without extension.                              |
+| `sheetName`       | `String`             | `'Data'`                | Worksheet name.                                                  |
+
+### Dropdowns in cells
+
+By default the card clips its contents and the table scrolls horizontally inside it, which cuts off any
+absolutely positioned menu or popover rendered in a cell. Set `overflow-visible` to remove both, so the
+menu can extend past the table. The trade-off: a table wider than its container widens the page rather
+than scrolling inside the card. Menus that teleport to `body` (or use `position: fixed`) do not need this.
+
+```vue
+<DtTable :data="rows" overflow-visible>
+```
 
 ### Selection
 

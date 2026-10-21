@@ -74,6 +74,14 @@ const props = defineProps({
   mono: { type: Boolean, default: false },
 
   /*
+   * Drops the overflow clipping on the card and the table's horizontal scroll
+   * wrapper, so absolutely positioned content in cells (dropdown menus,
+   * popovers) can escape the table. Wide tables then widen the page instead
+   * of scrolling inside the card.
+   */
+  overflowVisible: { type: Boolean, default: false },
+
+  /*
    * Shows a totals row under the table: number columns are summed,
    * minDate / maxDate columns show the earliest / latest date.
    */
@@ -1364,7 +1372,11 @@ const hasHeader = computed(() =>
 </script>
 
 <template>
-  <div class="relative w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-md">
+  <div
+    :class="[
+      'relative w-full rounded-lg border border-gray-200 bg-white shadow-md',
+      overflowVisible ? 'overflow-visible' : 'overflow-hidden',
+    ]">
     <!--
       DtColumn children are configuration, not markup. They are read straight
       out of the slot's vnodes and deliberately never mounted.
@@ -1433,7 +1445,7 @@ const hasHeader = computed(() =>
     </div>
 
     <!-- Table -->
-    <div class="overflow-x-auto p-4">
+    <div :class="['p-4', overflowVisible ? 'overflow-visible' : 'overflow-x-auto']">
       <table :class="['w-full border-collapse text-left text-xs', mono ? 'font-mono' : '']">
         <colgroup>
           <col
@@ -1578,7 +1590,7 @@ const hasHeader = computed(() =>
     </div>
 
     <!-- Pagination -->
-    <div class="flex items-center justify-between border-t border-gray-200 bg-gray-50/50 px-4 py-3">
+    <div class="flex items-center justify-between rounded-b-lg border-t border-gray-200 bg-gray-50/50 px-4 py-3">
       <!-- Results / page size -->
       <div class="flex items-center gap-3">
         <select

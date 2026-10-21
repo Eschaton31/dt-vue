@@ -469,3 +469,33 @@ describe('exposed api', () => {
     expect(wrapper.vm.getSelectedRows()).toEqual([])
   })
 })
+
+describe('overflowVisible', () => {
+  const card = (wrapper) => wrapper.find('div')
+  const scroller = (wrapper) => wrapper.find('table').element.parentElement
+
+  it('clips the card and scrolls the table by default', () => {
+    const wrapper = mountTable()
+
+    expect(card(wrapper).classes()).toContain('overflow-hidden')
+    expect(scroller(wrapper).classList).toContain('overflow-x-auto')
+  })
+
+  it('removes the clipping and the scroll wrapper when set', () => {
+    const wrapper = mountTable({ overflowVisible: true })
+
+    expect(card(wrapper).classes()).not.toContain('overflow-hidden')
+    expect(card(wrapper).classes()).toContain('overflow-visible')
+    expect(scroller(wrapper).classList).not.toContain('overflow-x-auto')
+    expect(scroller(wrapper).classList).toContain('overflow-visible')
+  })
+
+  it('reacts to the prop changing after mount', async () => {
+    const wrapper = mountTable()
+
+    await wrapper.setProps({ overflowVisible: true })
+
+    expect(card(wrapper).classes()).toContain('overflow-visible')
+    expect(scroller(wrapper).classList).toContain('overflow-visible')
+  })
+})

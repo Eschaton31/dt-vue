@@ -148,6 +148,12 @@ export interface DtTableProps<TRow = any, TSelected = any> {
   /** Monospace table text. */
   mono?: boolean
 
+  /**
+   * Drop the card's overflow clipping and the horizontal scroll wrapper so
+   * dropdowns and popovers in cells are not cut off.
+   */
+  overflowVisible?: boolean
+
   /** Totals row for numeric and min/max date columns. */
   totals?: boolean
 
