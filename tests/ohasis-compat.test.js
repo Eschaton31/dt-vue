@@ -3,14 +3,15 @@
  * <TanstackTable> / <TanstackColumn> API while running on dt-vue.
  *
  * It imports the real shim out of the sibling checkout rather than a copy, so
- * it cannot drift. Skipped when that checkout is not present.
+ * it cannot drift. Skipped when that checkout is not present, so a skipped run
+ * proves nothing: check the non-skipped count in the test output.
  */
 import { mount } from '@vue/test-utils'
 import { existsSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { h, nextTick } from 'vue'
 
-const OHASIS = 'C:/laragon/www/ohasis/resources/js/components/charts'
+const OHASIS = 'C:/laragon/www/ohasis/resources/js/components/tables'
 
 const available = existsSync(`${OHASIS}/TanstackTable.vue`)
 
@@ -45,7 +46,16 @@ describeIf('OHASIS compatibility shim', () => {
 
     const wrapper = mount(Table, { props: { data: DATA, columns: { cases: 'number' } } })
 
-    expect(wrapper.find('thead th').classes()).toContain('cursor-pointer')
+    // 0.3.0 sorts through a real button in the header cell, which Tab can reach.
+    const button = wrapper.find('thead th button')
+
+    expect(button.exists()).toBe(true)
+    expect(button.attributes('type')).toBe('button')
+    expect(wrapper.find('thead th').attributes('aria-sort')).toBeUndefined()
+
+    await button.trigger('click')
+
+    expect(wrapper.find('thead th').attributes('aria-sort')).toBe('descending')
   })
 
   it('maps accomplishment to a shaded percent column', async () => {
@@ -112,10 +122,9 @@ describeIf('OHASIS compatibility shim', () => {
       props: { data: DATA, columns: { name: 'category' }, actions: true, fetch: true, title: 'Report' },
     })
 
-    const labels = wrapper.findAll('button').map((button) => button.text())
-
-    expect(labels).toContain('Export')
-    expect(labels).toContain('Fetch')
+    // Export is an icon-only ghost button now, named by its aria-label.
+    expect(wrapper.find('button[aria-label="Export to Excel"]').exists()).toBe(true)
+    expect(wrapper.findAll('button').map((button) => button.text())).toContain('Fetch')
   })
 
   it('emits fetch from the Fetch button', async () => {
@@ -262,7 +271,7 @@ describeIf('OHASIS shim, used from a page template', () => {
     const wrapper = mount(Page, { props: { data: DATA } })
     const labels = wrapper.findAll('button').map((button) => button.text())
 
-    expect(labels).toContain('Export')
+    expect(wrapper.find('button[aria-label="Export to Excel"]').exists()).toBe(true)
     expect(labels).toContain('Fetch')
     expect(labels).toContain('Menu action')
     expect(wrapper.find('tfoot').text()).toContain('1,333')

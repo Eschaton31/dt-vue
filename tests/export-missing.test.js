@@ -26,7 +26,7 @@ describe('export without the xlsx peer', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const wrapper = mountTable()
 
-    await wrapper.findAll('button').find((button) => button.text() === 'Export').trigger('click')
+    await wrapper.find('button[aria-label="Export to Excel"]').trigger('click')
     await nextTick()
     await new Promise((resolve) => setTimeout(resolve, 5))
 

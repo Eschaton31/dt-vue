@@ -87,6 +87,15 @@ defineProps({
     default: null,
   },
 
+  /*
+   * Native tooltip for the body cell: (value, rowData) => string | undefined.
+   * Pairs with bands(): :cell-title="(value) => rate.band(value)?.label"
+   */
+  cellTitle: {
+    type: Function,
+    default: null,
+  },
+
   // Include this column in the Excel export.
   exportable: {
     type: Boolean,

@@ -34,6 +34,7 @@ const COLUMN_DEFAULTS = {
   width: null,
   decimals: null,
   cellStyle: null,
+  cellTitle: null,
 }
 
 function isColumnVNode(vnode) {

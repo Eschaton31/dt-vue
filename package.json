@@ -42,7 +42,7 @@
     "tailwind"
   ],
   "peerDependencies": {
-    "@heroicons/vue": "^2.0.0",
+    "@heroicons/vue": "^2.1.0",
     "@tanstack/vue-table": "^8.20.0",
     "vue": "^3.4.0",
     "xlsx": "*"

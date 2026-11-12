@@ -44,6 +44,13 @@ describe('normalizeColumnProps', () => {
     expect(props.width).toBeNull()
   })
 
+  it('defaults cellTitle to null and keeps a given function', () => {
+    const title = () => 'x'
+
+    expect(normalizeColumnProps({ field: 'a' }).cellTitle).toBeNull()
+    expect(normalizeColumnProps({ field: 'a', 'cell-title': title }).cellTitle).toBe(title)
+  })
+
   it('falls back to the field for a missing header', () => {
     expect(normalizeColumnProps({ field: 'cases' }).header).toBe('cases')
   })

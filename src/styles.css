@@ -6,29 +6,92 @@
  *   import 'dt-vue/styles.css'
  *
  * Re-theme by overriding any token on :root, or on any ancestor element
- * to scope a different theme to part of the page.
+ * to scope a different theme to part of the page. The defaults are neutral
+ * greys with no brand hue, so a table looks finished before any theming.
  *
- * Only brand colours are tokenised. Neutral greys use plain Tailwind
- * utilities, which exist in every Tailwind install.
+ * Tokens cover the accent, the washes (selected, hover, header, group), the
+ * hairline border and the card's radius and shadow. Everything else uses
+ * plain Tailwind utilities, which exist in every Tailwind install.
  */
 :root {
-  /* Primary accent: active controls, checkboxes, sort hover. */
-  --dt-accent: #2f6f74;
+  /* Accent: the sorted column's arrow, checkboxes, group-by pressed border, loading line. */
+  --dt-accent: #374151;
 
-  /* Darker accent for text and the active pagination button. */
-  --dt-accent-strong: #2b6569;
-
-  /* Foreground used on top of --dt-accent-strong. */
-  --dt-accent-fg: #ffffff;
-
-  /* Selected rows and visual group headings. */
-  --dt-accent-wash: rgb(87 151 146 / 0.1);
+  /* Darker accent for text on a wash: the pressed group-by label and the current page. */
+  --dt-accent-strong: #111827;
 
   /* Focus states on inputs and selects. */
-  --dt-focus-border: #7fbfb0;
-  --dt-focus-ring: rgb(127 191 176 / 0.2);
+  --dt-focus-border: #9ca3af;
+  --dt-focus-ring: rgb(156 163 175 / 0.25);
 
-  /* Secondary action colour: the Export button. */
-  --dt-action: #86bc7c;
-  --dt-action-fg: #ffffff;
+  /* Selected rows, the pressed group-by toggle and the current page. */
+  --dt-selected: #f3f4f6;
+
+  /* Row hover. */
+  --dt-hover: #f9fafb;
+
+  /* Header band. */
+  --dt-header-bg: #f9fafb;
+
+  /* The card edge, the header rule and the row hairlines. */
+  --dt-border: #e5e7eb;
+
+  /* The card's corner radius. */
+  --dt-radius: 0.5rem;
+
+  /* The card's shadow, a full box-shadow value. */
+  --dt-shadow: 0 1px 2px 0 rgb(16 24 40 / 0.05);
+
+  /* Group heading rows. */
+  --dt-group-bg: #f9fafb;
+}
+
+/*
+ * Loading: a 2px line along the card's top edge, with a bar sweeping across it.
+ */
+.dt-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  overflow: hidden;
+}
+
+.dt-progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -30%;
+  width: 30%;
+  height: 2px;
+  background: var(--dt-accent);
+  animation: dt-sweep 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+@keyframes dt-sweep {
+  from {
+    left: -30%;
+  }
+
+  to {
+    left: 100%;
+  }
+}
+
+/* Reduced motion: the bar stops and holds as a faint full-width line. */
+@media (prefers-reduced-motion: reduce) {
+  .dt-progress::after {
+    animation: none;
+    left: 0;
+    width: 100%;
+    opacity: 0.35;
+  }
+}
+
+/* The toolbar search: hide the browser's own blue clear "x". */
+.dt-search::-webkit-search-cancel-button,
+.dt-search::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
 }

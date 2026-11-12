@@ -17,29 +17,45 @@ export type DtAlign = 'left' | 'center' | 'right'
 
 export type DtSortOrder = 1 | -1
 
+/** Text size and row padding: 12px (the default) or 13px with roomier rows. */
+export type DtDensity = 'compact' | 'comfortable'
+
+/** Pager style: range with previous / next, or a window of page numbers as well. */
+export type DtPagination = 'step' | 'numbers'
+
 /** A `cellStyle` function: anything assignable to a Vue inline style object. */
 export type DtCellStyle<TRow = any> = (value: any, row: TRow) => Record<string, string> | undefined
 
+/** A `cellTitle` function: the text for a body cell's `title` attribute. Null or undefined leaves it off. */
+export type DtCellTitle<TRow = any> = (value: any, row: TRow) => string | null | undefined
+
 /** Every string the table renders. Pass a partial to the `labels` prop. */
 export interface DtLabels {
+  /** Placeholder and accessible name of the search box. */
   search: string
+  /** Empty-state title. */
   empty: string
+  /** Empty-state hint under the title. Omitted while empty. */
+  emptyHint: string
+  /** Empty-state title while a search is active. Supports `{query}`. */
+  emptySearch: string
+  /** Announced (visually hidden) while `loading`. */
   loading: string
+  /** Name and tooltip of the export button. */
   export: string
   /** Supports `{label}`. */
   groupBy: string
+  /** Count after a group heading or grouped row. Supports `{count}`. */
+  groupCount: string
   clearGrouping: string
-  /** Supports `{size}`. */
-  pageSize: string
-  noResults: string
-  /** Supports `{from}`, `{to}`, `{total}` and `{unit}`. */
-  results: string
-  unitRows: string
-  unitResults: string
-  firstPage: string
+  /** Label in the totals row, under the first non-numeric column that has no total of its own. */
+  total: string
+  /** Visible label of the page-size select. */
+  rowsPerPage: string
+  /** Supports `{from}`, `{to}` and `{total}`. */
+  range: string
   previousPage: string
   nextPage: string
-  lastPage: string
   pagination: string
   expandRow: string
   collapseRow: string
@@ -77,8 +93,11 @@ export interface DtColumnProps<TRow = any> {
   /** Fraction digits for `type="percent"`. Defaults to 2. */
   decimals?: number
 
-  /** Conditional cell styling. See `heatmap()`. */
+  /** Conditional cell styling. See `heatmap()` and `bands()`. */
   cellStyle?: DtCellStyle<TRow>
+
+  /** The body cell's native tooltip. Pairs with `bands().band(value)?.label`. */
+  cellTitle?: DtCellTitle<TRow>
 
   /** Include this column in the Excel export. Defaults to true. */
   exportable?: boolean
@@ -142,8 +161,14 @@ export interface DtTableProps<TRow = any, TSelected = any> {
   /** Visual-only heading row inserted whenever this field changes between rows. */
   groupRowsBy?: string
 
-  /** Thin border under every row. */
+  /** Hairline under every row. Defaults to true. */
   bordered?: boolean
+
+  /** Text size and row padding. Defaults to `'compact'`. */
+  density?: DtDensity
+
+  /** Pager style. Defaults to `'step'`. */
+  pagination?: DtPagination
 
   /** Monospace table text. */
   mono?: boolean
@@ -186,7 +211,7 @@ export interface DtTableProps<TRow = any, TSelected = any> {
   /** Checkbox column, plus click, shift-click and drag selection. */
   selectable?: boolean
 
-  /** Show the built-in Export button. Requires the optional `xlsx` peer. */
+  /** Show the built-in Export button (icon only). Requires the optional `xlsx` peer. */
   exportable?: boolean
 
   /** Export filename without extension. Defaults to `title`. */
@@ -207,14 +232,23 @@ export interface DtTableToolbarSlotProps<TRow = any> {
   clearGrouping: () => void
 }
 
+export interface DtTableEmptySlotProps {
+  /** The active search, trimmed. Empty when there is none. */
+  query: string
+  /** Empty the search box and the filter. */
+  clearSearch: () => void
+}
+
 export interface DtTableSlots<TRow = any> {
   /** Column declarations. */
   default?: () => any
   /** Replace the heading. */
   title?: () => any
-  /** Buttons in the header bar. */
+  /** Buttons in the header bar, after the built-in ones. */
   toolbar?: (props: DtTableToolbarSlotProps<TRow>) => any
-  empty?: () => any
+  /** The action area under the empty state's title and hint, e.g. a Clear search button. */
+  empty?: (props: DtTableEmptySlotProps) => any
+  /** Replaces the skeleton rows while `loading`. */
   loading?: () => any
 }
 
@@ -263,6 +297,47 @@ export interface HeatmapOptions {
  * between `min` and `max`.
  */
 export declare function heatmap(options?: HeatmapOptions): DtCellStyle
+
+export interface BandsOptions {
+  /** Ascending cut points between bands. `n` cuts make `n + 1` bands. */
+  cuts: number[]
+  /** Two shades per band, lower half then upper half: `#rgb`, `#rrggbb` or `rgb(r, g, b)`. */
+  shades: [string, string][]
+  /** A name for each band, read back by `.band(value)`. */
+  labels?: string[]
+  /** Values below this take the first shade. Defaults to 0. */
+  min?: number
+  /** Values at or above this take the last shade. Defaults to 100. */
+  max?: number
+  /** Text colour on light shades. Defaults to a near-black. */
+  ink?: string
+  /** Text colour on dark shades. Defaults to white. */
+  light?: string
+}
+
+export interface DtBand {
+  /** Which band the value falls in. */
+  index: number
+  /** `labels[index]`, or null. */
+  label: string | null
+  background: string
+  /** `light` or `ink`, whichever reads better on `background`. */
+  color: string
+}
+
+/** The function `bands()` returns: a `cellStyle` that also names the band. */
+export interface DtBandsCellStyle {
+  (value: unknown): { backgroundColor: string; color: string } | undefined
+  /** The band for a value, or null for a blank or non-numeric one. */
+  band: (value: unknown) => DtBand | null
+}
+
+/**
+ * Build a `cell-style` function that shades a cell by graded bands (two shades
+ * per band) and picks readable text for each shade. Throws a TypeError for
+ * mismatched cuts and shades, cuts that do not strictly ascend, or an unreadable colour.
+ */
+export declare function bands(options: BandsOptions): DtBandsCellStyle
 
 export interface FormatterOptions {
   locale?: string

@@ -4,8 +4,8 @@
  * legacy :columns object, <TanstackColumn> children with a #body slot, and
  * the actions / fetch / #menu header.
  */
-import Column from '../../../ohasis/resources/js/components/charts/TanstackColumn.vue'
-import Table from '../../../ohasis/resources/js/components/charts/TanstackTable.vue'
+import Column from '../../../ohasis/resources/js/components/tables/TanstackColumn.vue'
+import Table from '../../../ohasis/resources/js/components/tables/TanstackTable.vue'
 
 defineProps({
   data: { type: Array, default: () => [] },

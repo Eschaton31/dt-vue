@@ -14,15 +14,19 @@ import {
 import { computed, getCurrentInstance, h, onBeforeUnmount, ref, useSlots, watch } from 'vue'
 
 import {
-  ChevronDoubleLeftIcon,
-  ChevronDoubleRightIcon,
   ChevronDownIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   ChevronUpDownIcon,
   ChevronUpIcon,
-} from '@heroicons/vue/24/solid'
+  DocumentArrowDownIcon,
+  MagnifyingGlassIcon,
+  XMarkIcon,
+} from '@heroicons/vue/16/solid'
+import { TableCellsIcon } from '@heroicons/vue/20/solid'
 
+import DtPager from './DtPager.vue'
+import DtTooltip from './DtTooltip.vue'
+import { GHOST_ICON_BUTTON } from './lib/classes.js'
 import { readColumnsFromSlot, warnOnDuplicateFields } from './lib/columns.js'
 import { DATE_TYPES, NUMERIC_TYPES, createFormatter, isValidDate, toDate, toNumber } from './lib/format.js'
 import { exportRowsToXlsx, flattenRows } from './lib/export.js'
@@ -67,8 +71,28 @@ const props = defineProps({
    */
   groupRowsBy: { type: String, default: null },
 
-  // Draws a thin border under every row.
-  bordered: { type: Boolean, default: false },
+  // Draws a hairline under every row. Pass :bordered="false" to remove it.
+  bordered: { type: Boolean, default: true },
+
+  /*
+   * Text size and row padding: 'compact' (12px, the default) or 'comfortable' (13px, roomier rows).
+   * Header cells and group headings keep their padding in both.
+   */
+  density: {
+    type: String,
+    default: 'compact',
+    validator: (value) => ['compact', 'comfortable'].includes(value),
+  },
+
+  /*
+   * Pager style: 'step' shows the range with previous / next, 'numbers' adds a
+   * window of page numbers. Both keep the Rows select.
+   */
+  pagination: {
+    type: String,
+    default: 'step',
+    validator: (value) => ['step', 'numbers'].includes(value),
+  },
 
   // Monospace table text.
   mono: { type: Boolean, default: false },
@@ -152,21 +176,20 @@ const modelValue = defineModel({
 */
 
 const DEFAULT_LABELS = {
-  search: 'Search all columns...',
+  search: 'Search',
   empty: 'No entries found',
+  emptyHint: '',
+  emptySearch: 'No entries match "{query}"',
   loading: 'Loading...',
-  export: 'Export',
+  export: 'Export to Excel',
   groupBy: 'Group by {label}',
+  groupCount: '{count}',
   clearGrouping: 'Clear grouping',
-  pageSize: 'Show {size}',
-  noResults: 'No results',
-  results: 'Showing {from}-{to} of {total} {unit}',
-  unitRows: 'rows',
-  unitResults: 'results',
-  firstPage: 'First page',
+  total: 'Total',
+  rowsPerPage: 'Rows',
+  range: '{from}–{to} of {total}',
   previousPage: 'Previous page',
   nextPage: 'Next page',
-  lastPage: 'Last page',
   pagination: 'Pagination',
   expandRow: 'Expand row',
   collapseRow: 'Collapse row',
@@ -185,6 +208,39 @@ const labels = computed(() => ({ ...DEFAULT_LABELS, ...(props.labels ?? {}) }))
  */
 function t(key, values = {}) {
   return String(labels.value[key] ?? '').replace(/\{(\w+)\}/g, (match, name) => values[name] ?? match)
+}
+
+/**
+ * Like t(), but returns the label as segments so a placeholder can be styled
+ * (the pager bolds {from} and {to}) without putting HTML in a label.
+ *
+ * @param {string} key
+ * @param {Record<string, string | number>} values
+ * @return {{ text: string, placeholder: string | null }[]}
+ */
+function parts(key, values = {}) {
+  const text = String(labels.value[key] ?? '')
+  const segments = []
+
+  let last = 0
+
+  for (const match of text.matchAll(/\{(\w+)\}/g)) {
+    if (match.index > last) {
+      segments.push({ text: text.slice(last, match.index), placeholder: null })
+    }
+
+    const known = match[1] in values
+
+    segments.push({ text: String(known ? values[match[1]] : match[0]), placeholder: known ? match[1] : null })
+
+    last = match.index + match[0].length
+  }
+
+  if (last < text.length) {
+    segments.push({ text: text.slice(last), placeholder: null })
+  }
+
+  return segments
 }
 
 /*
@@ -314,8 +370,15 @@ const hasExpandableRows = computed(() => props.data.some((row) => getRowSubRows(
 |--------------------------------------------------------------------------
 */
 
+/**
+ * Header content. A sortable column returns the bare label and arrow, which the
+ * template puts inside the sort <button> (the button supplies the flex row); a
+ * plain column returns its own flex row.
+ */
 function renderHeader(label, type = 'string', align = null) {
   return (header) => {
+    const canSort = header.column.getCanSort()
+
     const sorted = header.column.getIsSorted()
 
     const SortIcon = sorted === 'asc' ? ChevronUpIcon : sorted === 'desc' ? ChevronDownIcon : ChevronUpDownIcon
@@ -323,29 +386,33 @@ function renderHeader(label, type = 'string', align = null) {
     // the header lines up with the cells below it
     const labelAlignment = getAlignment(type, align)
 
-    return h(
-      'div',
-      {
-        class: ['flex w-full items-center gap-1'],
-      },
-      [
-        h(
-          'span',
-          {
-            class: ['flex-1', labelAlignment],
-          },
-          label
-        ),
+    const content = [
+      h(
+        'span',
+        {
+          class: ['flex-1', labelAlignment],
+        },
+        label
+      ),
 
-        header.column.getCanSort()
-          ? h(SortIcon, {
-              class: 'h-3 w-3 shrink-0',
-            })
-          : null,
-      ]
-    )
+      canSort
+        ? h(SortIcon, {
+            'aria-hidden': 'true',
+            class: ['size-3.5 shrink-0', sorted ? 'text-[var(--dt-accent)]' : 'text-gray-400'],
+          })
+        : null,
+    ]
+
+    if (canSort) {
+      return content
+    }
+
+    return h('div', { class: 'flex w-full items-center gap-1' }, content)
   }
 }
+
+// Numbers and dates line their digits up in columns.
+const tabularFor = (type) => (NUMERIC_TYPES.includes(type) || DATE_TYPES.includes(type) ? 'tabular-nums' : '')
 
 /*
 |--------------------------------------------------------------------------
@@ -385,7 +452,7 @@ function renderFooter(type, decimals) {
       }
     }
 
-    return h('div', { class: 'w-full text-center font-semibold text-gray-700' }, text)
+    return h('div', { class: ['w-full text-center', tabularFor(type)] }, text)
   }
 }
 
@@ -416,7 +483,7 @@ const typeOptions = (type, decimals) => ({
   aggregationFn: aggregationFor(type),
   footer: renderFooter(type, decimals),
   aggregatedCell: (info) =>
-    h('div', { class: ['w-full text-gray-700', getAlignment(type)] }, formatValue(info.getValue(), type, decimals)),
+    h('div', { class: ['w-full', getAlignment(type), tabularFor(type)] }, formatValue(info.getValue(), type, decimals)),
 })
 
 /*
@@ -615,7 +682,7 @@ const columnsConfig = computed(() => {
   }
 
   const dataColumns = declaredColumns.value.map(({ props: columnProps, slots: columnSlots }) => {
-    const { field, header, type, sortable, align, fit, width, decimals, cellStyle, exportable } = columnProps
+    const { field, header, type, sortable, align, fit, width, decimals, cellStyle, cellTitle, exportable } = columnProps
 
     return columnHelper.accessor(field, {
       accessorFn: (row) => row[field],
@@ -637,7 +704,9 @@ const columnsConfig = computed(() => {
         decimals,
         fit,
         width,
+        align,
         cellStyle,
+        cellTitle,
         exportable,
       },
 
@@ -663,7 +732,7 @@ const columnsConfig = computed(() => {
         return h(
           'div',
           {
-            class: ['w-full text-gray-700', getAlignment(type, align), fit ? 'whitespace-nowrap' : ''],
+            class: ['w-full', getAlignment(type, align), tabularFor(type), fit ? 'whitespace-nowrap' : ''],
           },
           formatValue(value, type, decimals)
         )
@@ -905,11 +974,14 @@ const table = useVueTable({
         return isValidDate(date) && (max === null || date > max) ? date : max
       }, null),
 
-    // Text columns to the left of the grouped column repeat their (shared) value, the rest stay blank
+    // Text columns show the value every leaf shares, and stay blank when the leaves differ
+    // Date columns compare by time value, so two equal Date objects count as shared
     category: (columnId, leafRows) => {
-      const ids = table.getAllLeafColumns().map((column) => column.id)
+      const isDate = DATE_TYPES.includes(table.getColumn(columnId)?.columnDef.meta?.type)
+      const keyOf = (value) => (isDate ? (toDate(value)?.getTime() ?? value) : value)
+      const first = leafRows[0]?.getValue(columnId)
 
-      return ids.indexOf(columnId) < ids.indexOf(grouping.value[0]) ? leafRows[0].getValue(columnId) : ''
+      return leafRows.every((row) => keyOf(row.getValue(columnId)) === keyOf(first)) ? (first ?? '') : ''
     },
   },
 })
@@ -924,6 +996,31 @@ const clearGrouping = () => {
   grouping.value = []
   expanded.value = {}
   table.setPageIndex(0)
+}
+
+// The first group-by toggle, so clearing grouping can hand focus back to it.
+let firstGroupToggle = null
+
+const setFirstGroupToggle = (element, index) => {
+  if (index === 0) {
+    firstGroupToggle = element
+  }
+}
+
+// Pressing a toggle that is already on turns grouping off.
+const toggleGrouping = (columns) => {
+  if (grouping.value.join() === [].concat(columns).join()) {
+    clearGrouping()
+  } else {
+    changeGrouping(columns)
+  }
+}
+
+// The Clear grouping button disappears once it is used, which would drop focus to <body>.
+const onClearGrouping = () => {
+  clearGrouping()
+
+  firstGroupToggle?.focus()
 }
 
 /*
@@ -967,16 +1064,6 @@ watch(
 |--------------------------------------------------------------------------
 */
 
-const pageSize = computed({
-  get() {
-    return table.getState().pagination.pageSize
-  },
-
-  set(value) {
-    table.setPageSize(Number(value))
-  },
-})
-
 watch(
   () => props.rows,
   (value) => {
@@ -984,75 +1071,34 @@ watch(
   }
 )
 
-// "Showing 1-25 of 140 results"
-const resultsText = computed(() => {
-  // the rows the pager actually walks through: groups (and any expanded children) when grouped
-  const total = table.getPrePaginationRowModel().rows.length
-
-  if (total === 0) {
-    return t('noResults')
-  }
-
-  const { pageIndex, pageSize: size } = table.getState().pagination
-
-  return t('results', {
-    from: formatValue(pageIndex * size + 1, 'number'),
-    to: formatValue(Math.min((pageIndex + 1) * size, total), 'number'),
-    total: formatValue(total, 'number'),
-    unit: grouping.value.length > 0 ? t('unitRows') : t('unitResults'),
-  })
-})
-
-function goToFirst() {
-  table.setPageIndex(0)
-}
-
-function goToPrevious() {
-  table.previousPage()
-}
-
-function goToNext() {
-  table.nextPage()
-}
-
-function goToLast() {
-  table.setPageIndex(Math.max(table.getPageCount() - 1, 0))
-}
-
-function gotoPage(page) {
-  table.setPageIndex(page)
-}
-
-const visiblePages = computed(() => {
-  const total = table.getPageCount()
-
-  if (total <= 5) {
-    return Array.from({ length: total }, (_, index) => index)
-  }
-
-  const current = table.getState().pagination.pageIndex
-
-  let start = current - 2
-  let end = current + 2
-
-  if (start < 0) {
-    start = 0
-    end = 4
-  }
-
-  if (end >= total) {
-    end = total - 1
-    start = total - 5
-  }
-
-  return Array.from({ length: end - start + 1 }, (_, index) => start + index)
-})
+const formatCount = (value) => formatValue(value, 'number')
 
 /*
 |--------------------------------------------------------------------------
 | Display rows / visual grouping
 |--------------------------------------------------------------------------
 */
+
+// Top-level rows per groupRowsBy value, after search and before pagination.
+const groupCounts = computed(() => {
+  const counts = new Map()
+
+  if (!props.groupRowsBy) {
+    return counts
+  }
+
+  for (const row of table.getPrePaginationRowModel().rows) {
+    if (row.depth === 0) {
+      const value = row.original?.[props.groupRowsBy] ?? ''
+
+      counts.set(value, (counts.get(value) ?? 0) + 1)
+    }
+  }
+
+  return counts
+})
+
+const groupCountText = (count) => t('groupCount', { count: formatCount(count) })
 
 const displayRows = computed(() => {
   const rows = table.getRowModel().rows
@@ -1367,14 +1413,85 @@ defineExpose({
 })
 
 const hasHeader = computed(() =>
-  Boolean(props.title || props.groupBy || props.exportable || slots.title || slots.toolbar)
+  Boolean(props.title || props.searchable || props.groupBy || props.exportable || slots.title || slots.toolbar)
 )
+
+/*
+|--------------------------------------------------------------------------
+| Density, loading and empty states
+|--------------------------------------------------------------------------
+*/
+
+const densityClasses = computed(() =>
+  props.density === 'comfortable'
+    ? { table: 'text-[13px]', cell: 'px-3 py-2.5' }
+    : { table: 'text-xs', cell: 'px-3 py-2' }
+)
+
+// Numbers, percents and dates stay on one line; the wrapper scrolls instead.
+const NOWRAP_TYPES = new Set(['number', 'percent', 'date', 'minDate', 'maxDate'])
+
+// The totals row's label goes under the first data column that is not numeric and has no total of its own.
+const totalLabelColumnId = computed(
+  () =>
+    table
+      .getVisibleLeafColumns()
+      .find(
+        (column) =>
+          !column.id.startsWith('__') &&
+          !NUMERIC_TYPES.includes(column.columnDef.meta?.type) &&
+          !column.columnDef.footer
+      )?.id
+)
+
+const isEmpty = computed(() => table.getRowModel().rows.length === 0)
+
+const searchQuery = computed(() => String(globalFilter.value ?? '').trim())
+
+const emptyTitle = computed(() => (searchQuery.value ? t('emptySearch', { query: searchQuery.value }) : t('empty')))
+
+const emptyHint = computed(() => t('emptyHint'))
+
+function clearSearch() {
+  clearTimeout(searchTimer)
+
+  searchInput.value = ''
+  globalFilter.value = ''
+}
+
+// Skeleton rows: as many as a page, up to five, one varied bar per data cell.
+const SKELETON_WIDTHS = [62, 48, 70, 55, 40]
+
+const skeletonRows = computed(() =>
+  Array.from({ length: Math.min(table.getState().pagination.pageSize, 5) }, (_, row) => row)
+)
+
+// A bar lines up the way its column's values do.
+const skeletonBarClass = (column) => {
+  const { type, align } = column.columnDef.meta ?? {}
+
+  const alignment = getAlignment(type, align)
+
+  return [
+    'block h-2.5 rounded bg-gray-100',
+    alignment === 'text-right' ? 'ml-auto' : alignment === 'text-center' ? 'mx-auto' : '',
+  ]
+}
+
+// A cell's native tooltip, for ordinary cells only (not group, placeholder or aggregated ones).
+function cellTitleFor(cell) {
+  if (cell.getIsGrouped() || cell.getIsPlaceholder() || (grouping.value.length > 0 && cell.getIsAggregated())) {
+    return undefined
+  }
+
+  return cell.column.columnDef.meta?.cellTitle?.(cell.getValue(), cell.row.original)
+}
 </script>
 
 <template>
   <div
     :class="[
-      'relative w-full rounded-lg border border-gray-200 bg-white shadow-md',
+      'relative w-full rounded-[var(--dt-radius)] border border-[var(--dt-border)] bg-white shadow-[shadow:var(--dt-shadow)]',
       overflowVisible ? 'overflow-visible' : 'overflow-hidden',
     ]">
     <!--
@@ -1382,48 +1499,71 @@ const hasHeader = computed(() =>
       out of the slot's vnodes and deliberately never mounted.
     -->
 
+    <!-- Loading: a 2px progress line, and an announcement that is always mounted so it is read out -->
+    <div v-if="loading" aria-hidden="true" class="dt-progress" />
+
+    <span class="sr-only" role="status">{{ loading ? t('loading') : '' }}</span>
+
     <!-- Header -->
-    <div v-if="hasHeader" class="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
-      <div class="min-w-0">
+    <div
+      v-if="hasHeader"
+      class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[var(--dt-border)] px-4 py-3">
+      <div v-if="title || $slots.title" class="min-w-0">
         <slot name="title">
-          <h3 v-if="title" class="text-base font-semibold text-gray-800">
+          <h3 v-if="title" class="text-[15px] font-semibold text-gray-900">
             {{ title }}
           </h3>
         </slot>
       </div>
 
-      <div class="flex shrink-0 items-center gap-2">
+      <div class="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+        <!-- Search -->
+        <div v-if="searchable" class="relative w-full sm:w-60">
+          <MagnifyingGlassIcon
+            aria-hidden="true"
+            class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+
+          <input
+            v-model="searchInput"
+            :aria-label="t('search')"
+            :placeholder="t('search')"
+            class="dt-search h-8 w-full rounded-lg border border-gray-300 bg-white pl-8 pr-2.5 text-[13px] text-gray-900 placeholder:text-gray-500 focus:border-[var(--dt-focus-border)] focus:outline-none focus:ring-2 focus:ring-[var(--dt-focus-ring)]"
+            type="search" />
+        </div>
+
         <template v-if="groupBy">
           <button
-            v-for="(columns, label) in groupBy"
+            v-for="(columns, label, index) in groupBy"
             :key="label"
+            :ref="(element) => setFirstGroupToggle(element, index)"
+            :aria-pressed="grouping.join() === [].concat(columns).join()"
             :class="[
-              'inline-flex h-7 items-center rounded-lg border bg-white px-3 text-xs font-semibold shadow-sm transition-all duration-150 ease-out hover:shadow-md active:translate-y-px',
+              'inline-flex h-7 items-center rounded-lg border px-2.5 text-xs font-semibold transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dt-focus-ring)]',
               grouping.join() === [].concat(columns).join()
-                ? 'border-[var(--dt-accent)] text-[var(--dt-accent-strong)]'
-                : 'border-gray-300 text-gray-700',
+                ? 'border-[var(--dt-accent)] bg-[var(--dt-selected)] text-[var(--dt-accent-strong)]'
+                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
             ]"
             type="button"
-            @click="changeGrouping(columns)">
+            @click="toggleGrouping(columns)">
             {{ t('groupBy', { label }) }}
           </button>
 
-          <button
-            v-if="grouping.length > 0"
-            class="inline-flex h-7 items-center rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 shadow-sm transition-all duration-150 ease-out hover:shadow-md active:translate-y-px"
-            type="button"
-            @click="clearGrouping">
-            {{ t('clearGrouping') }}
-          </button>
+          <DtTooltip v-if="grouping.length > 0" :text="t('clearGrouping')">
+            <button
+              :aria-label="t('clearGrouping')"
+              :class="GHOST_ICON_BUTTON"
+              type="button"
+              @click="onClearGrouping">
+              <XMarkIcon aria-hidden="true" class="size-4" />
+            </button>
+          </DtTooltip>
         </template>
 
-        <button
-          v-if="exportable"
-          class="inline-flex h-7 items-center gap-2 rounded-lg border border-[var(--dt-action)] bg-[var(--dt-action)] px-3 text-xs font-semibold text-[var(--dt-action-fg)] shadow-sm transition-all duration-150 ease-out hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dt-action)] active:translate-y-px disabled:cursor-not-allowed disabled:shadow-none"
-          type="button"
-          @click="onExportClick">
-          {{ t('export') }}
-        </button>
+        <DtTooltip v-if="exportable" :text="t('export')">
+          <button :aria-label="t('export')" :class="GHOST_ICON_BUTTON" type="button" @click="onExportClick">
+            <DocumentArrowDownIcon aria-hidden="true" class="size-4" />
+          </button>
+        </DtTooltip>
 
         <slot
           name="toolbar"
@@ -1435,18 +1575,11 @@ const hasHeader = computed(() =>
       </div>
     </div>
 
-    <!-- Search -->
-    <div v-if="searchable" class="px-4 pt-4">
-      <input
-        v-model="searchInput"
-        :placeholder="t('search')"
-        class="block w-full rounded-md border border-gray-300 bg-white py-1.5 pl-3 pr-3 text-xs text-gray-900 shadow-sm transition focus:border-[var(--dt-focus-border)] focus:outline-none focus:ring-2 focus:ring-[var(--dt-focus-ring)]"
-        type="search" />
-    </div>
-
     <!-- Table -->
-    <div :class="['p-4', overflowVisible ? 'overflow-visible' : 'overflow-x-auto']">
-      <table :class="['w-full border-collapse text-left text-xs', mono ? 'font-mono' : '']">
+    <div :class="[overflowVisible ? 'overflow-visible' : 'overflow-x-auto']">
+      <table
+        :aria-busy="loading ? 'true' : undefined"
+        :class="['w-full border-collapse text-left', densityClasses.table, mono ? 'font-mono' : '']">
         <colgroup>
           <col
             v-for="column in table.getVisibleLeafColumns()"
@@ -1456,7 +1589,7 @@ const hasHeader = computed(() =>
 
         <!-- Header -->
         <thead>
-          <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id" class="border-b-2 border-gray-200">
+          <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
             <th
               v-for="header in headerGroup.headers"
               :key="header.id"
@@ -1468,201 +1601,179 @@ const hasHeader = computed(() =>
                     : undefined
               "
               :class="[
-                header.column.getCanSort() ? 'cursor-pointer select-none' : '',
-                'px-2 py-2 text-xs font-semibold text-gray-700 transition-colors hover:text-[var(--dt-accent-strong)]',
-                header.column.columnDef.meta?.fit ? 'whitespace-nowrap' : '',
+                header.column.getCanSort() ? 'p-0' : 'px-3 py-2',
+                'whitespace-nowrap border-b border-[var(--dt-border)] bg-[var(--dt-header-bg)] text-xs font-semibold',
+                header.column.getIsSorted() ? 'text-gray-900' : 'text-gray-600',
                 header.column.columnDef.meta?.width ?? '',
               ]"
               :colspan="header.colSpan"
               :style="{
                 width: header.column.columnDef.meta?.fit ? '1%' : undefined,
-              }"
-              @click="header.column.getToggleSortingHandler()?.($event)">
-              <FlexRender
-                v-if="!header.isPlaceholder"
-                :props="header.getContext()"
-                :render="header.column.columnDef.header" />
+              }">
+              <template v-if="!header.isPlaceholder">
+                <!-- Sortable: the label is a real button, so Tab reaches it and Enter or Space sorts -->
+                <button
+                  v-if="header.column.getCanSort()"
+                  class="flex w-full select-none items-center gap-1 whitespace-nowrap rounded-lg px-3 py-2 transition-colors duration-150 ease-out hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--dt-focus-ring)]"
+                  type="button"
+                  @click="header.column.getToggleSortingHandler()?.($event)">
+                  <FlexRender :props="header.getContext()" :render="header.column.columnDef.header" />
+                </button>
+
+                <FlexRender v-else :props="header.getContext()" :render="header.column.columnDef.header" />
+              </template>
             </th>
           </tr>
         </thead>
 
         <!-- Body -->
         <tbody>
-          <template
-            v-for="(item, index) in displayRows"
-            :key="item.type === 'group' ? `group-${item.value}-${index}` : item.row.id">
-            <!-- Visual group row -->
-            <tr v-if="item.type === 'group'" class="border-b border-gray-200 bg-[var(--dt-accent-wash)]">
-              <td
-                :colspan="table.getVisibleLeafColumns().length || 1"
-                class="px-3 py-2 text-xs font-semibold text-[var(--dt-accent-strong)]">
-                {{ item.value }}
-              </td>
-            </tr>
+          <template v-if="!loading">
+            <template
+              v-for="(item, index) in displayRows"
+              :key="item.type === 'group' ? `group-${item.value}-${index}` : item.row.id">
+              <!-- Visual group row -->
+              <tr v-if="item.type === 'group'" class="border-b border-[var(--dt-border)] bg-[var(--dt-group-bg)]">
+                <td
+                  :colspan="table.getVisibleLeafColumns().length || 1"
+                  class="px-3 py-1.5 text-xs font-semibold text-gray-900">
+                  {{ item.value
+                  }}<span class="ml-1.5 font-medium text-gray-500">{{
+                    groupCountText(groupCounts.get(item.value) ?? 0)
+                  }}</span>
+                </td>
+              </tr>
 
-            <!-- Normal data row -->
-            <tr
-              v-else
-              :class="[
-                item.row.getIsSelected()
-                  ? 'bg-[var(--dt-accent-wash)]'
-                  : item.row.depth > 0
-                    ? 'bg-gray-50/60'
-                    : 'bg-white',
-                'transition-colors duration-100',
-                { 'border-b border-gray-200': bordered },
-                { 'cursor-pointer select-none hover:bg-gray-50': selectable && item.row.depth === 0 },
-              ]"
-              @mousedown="startRowDrag($event, item.row)"
-              @mouseenter="dragOverRow(item.row)">
-              <td
-                v-for="cell in item.row.getVisibleCells()"
-                :key="cell.id"
+              <!-- Normal data row -->
+              <tr
+                v-else
                 :class="[
-                  'px-2 py-2 align-middle text-xs text-gray-700',
-                  cell.column.columnDef.meta?.fit ? 'whitespace-nowrap' : '',
-                  cell.column.columnDef.meta?.width ?? '',
+                  item.row.getIsGrouped()
+                    ? 'bg-[var(--dt-group-bg)]'
+                    : item.row.getIsSelected()
+                      ? 'bg-[var(--dt-selected)]'
+                      : [item.row.depth > 0 ? 'bg-gray-50/60' : 'bg-white', 'hover:bg-[var(--dt-hover)]'],
+                  'transition-colors duration-150 ease-out',
+                  { 'border-b border-[var(--dt-border)]': bordered },
+                  { 'cursor-pointer select-none': selectable && item.row.depth === 0 },
                 ]"
-                :style="cell.column.columnDef.meta?.cellStyle?.(cell.getValue(), cell.row.original)"
-                @click="onRowClick($event, item.row)">
-                <!-- Grouped cell: the group's value and size, click to expand -->
-                <button
-                  v-if="cell.getIsGrouped()"
-                  class="inline-flex items-center gap-1 font-semibold text-gray-700"
-                  type="button"
-                  @click.stop="item.row.getToggleExpandedHandler()()">
-                  <ChevronDownIcon v-if="item.row.getIsExpanded()" aria-hidden="true" class="size-3" />
-                  <ChevronRightIcon v-else aria-hidden="true" class="size-3" />
-                  <span>{{ cell.getValue() }}</span>
-                  <span class="font-normal text-gray-500">({{ item.row.subRows.length }})</span>
-                </button>
+                @mousedown="startRowDrag($event, item.row)"
+                @mouseenter="dragOverRow(item.row)">
+                <td
+                  v-for="cell in item.row.getVisibleCells()"
+                  :key="cell.id"
+                  :class="[
+                    'align-middle text-gray-800',
+                    densityClasses.cell,
+                    cell.column.columnDef.meta?.fit || NOWRAP_TYPES.has(cell.column.columnDef.meta?.type)
+                      ? 'whitespace-nowrap'
+                      : '',
+                    cell.column.columnDef.meta?.width ?? '',
+                  ]"
+                  :style="cell.column.columnDef.meta?.cellStyle?.(cell.getValue(), cell.row.original)"
+                  :title="cellTitleFor(cell)"
+                  @click="onRowClick($event, item.row)">
+                  <!-- Grouped cell: the group's value and size, click to expand -->
+                  <button
+                    v-if="cell.getIsGrouped()"
+                    class="inline-flex items-center gap-1 rounded font-semibold text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dt-focus-ring)]"
+                    type="button"
+                    @click.stop="item.row.getToggleExpandedHandler()()">
+                    <ChevronDownIcon v-if="item.row.getIsExpanded()" aria-hidden="true" class="size-3" />
+                    <ChevronRightIcon v-else aria-hidden="true" class="size-3" />
+                    <span>{{ cell.getValue() }}</span>
+                    <span class="font-medium text-gray-500">{{ groupCountText(item.row.subRows.length) }}</span>
+                  </button>
 
-                <!-- Placeholder cell: nothing to aggregate for this column -->
-                <div v-else-if="cell.getIsPlaceholder()" class="size-3" />
+                  <!-- Placeholder cell: nothing to aggregate for this column -->
+                  <div v-else-if="cell.getIsPlaceholder()" class="size-3" />
 
-                <!-- Aggregated cell on a grouped row -->
-                <FlexRender
-                  v-else-if="grouping.length > 0 && cell.getIsAggregated()"
-                  :props="cell.getContext()"
-                  :render="cell.column.columnDef.aggregatedCell ?? cell.column.columnDef.cell" />
+                  <!-- Aggregated cell on a grouped row -->
+                  <FlexRender
+                    v-else-if="grouping.length > 0 && cell.getIsAggregated()"
+                    :props="cell.getContext()"
+                    :render="cell.column.columnDef.aggregatedCell ?? cell.column.columnDef.cell" />
 
-                <!-- Regular cell -->
-                <FlexRender v-else :props="cell.getContext()" :render="cell.column.columnDef.cell" />
+                  <!-- Regular cell -->
+                  <FlexRender v-else :props="cell.getContext()" :render="cell.column.columnDef.cell" />
+                </td>
+              </tr>
+            </template>
+          </template>
+
+          <!-- Loading: the #loading slot, or still skeleton rows -->
+          <tr v-else-if="$slots.loading">
+            <td
+              :colspan="table.getVisibleLeafColumns().length || 1"
+              class="px-4 py-10 text-center text-xs text-gray-400">
+              <slot name="loading" />
+            </td>
+          </tr>
+
+          <template v-else>
+            <tr
+              v-for="row in skeletonRows"
+              :key="`skeleton-${row}`"
+              :class="{ 'border-b border-[var(--dt-border)]': bordered }">
+              <td v-for="(column, columnIndex) in table.getVisibleLeafColumns()" :key="column.id" class="p-3">
+                <span
+                  v-if="!column.id.startsWith('__')"
+                  :class="skeletonBarClass(column)"
+                  :style="{ width: `${SKELETON_WIDTHS[(row + columnIndex) % SKELETON_WIDTHS.length]}%` }"
+                  aria-hidden="true" />
               </td>
             </tr>
           </template>
-
-          <!-- Empty -->
-          <tr v-if="!loading && table.getRowModel().rows.length === 0">
-            <td
-              :colspan="table.getVisibleLeafColumns().length || 1"
-              class="px-4 py-10 text-center text-xs text-gray-400">
-              <slot name="empty">{{ t('empty') }}</slot>
-            </td>
-          </tr>
-
-          <!-- Loading -->
-          <tr v-if="loading">
-            <td
-              :colspan="table.getVisibleLeafColumns().length || 1"
-              class="px-4 py-10 text-center text-xs text-gray-400">
-              <slot name="loading">{{ t('loading') }}</slot>
-            </td>
-          </tr>
         </tbody>
 
         <!-- Totals -->
-        <tfoot v-if="totals">
-          <tr v-for="footerGroup in table.getFooterGroups()" :key="footerGroup.id" class="border-t-2 border-gray-200">
-            <th
+        <tfoot v-if="totals && !loading && !isEmpty">
+          <tr
+            v-for="footerGroup in table.getFooterGroups()"
+            :key="footerGroup.id"
+            class="border-t border-gray-300 bg-white">
+            <td
               v-for="header in footerGroup.headers"
               :key="header.id"
-              :colspan="header.colSpan"
-              class="px-2 py-2 text-xs font-semibold text-gray-700">
+              :class="['font-semibold text-gray-900', densityClasses.cell]"
+              :colspan="header.colSpan">
               <FlexRender
                 v-if="!header.isPlaceholder && header.column.columnDef.footer"
                 :props="header.getContext()"
                 :render="header.column.columnDef.footer" />
-            </th>
+
+              <template v-else-if="!header.isPlaceholder && header.column.id === totalLabelColumnId">{{
+                t('total')
+              }}</template>
+            </td>
           </tr>
         </tfoot>
       </table>
     </div>
 
-    <!-- Pagination -->
-    <div class="flex items-center justify-between rounded-b-lg border-t border-gray-200 bg-gray-50/50 px-4 py-3">
-      <!-- Results / page size -->
-      <div class="flex items-center gap-3">
-        <select
-          v-model="pageSize"
-          class="rounded-md border border-gray-300 bg-white py-1.5 pl-2 pr-8 text-xs text-gray-700 shadow-sm transition focus:border-[var(--dt-focus-border)] focus:outline-none focus:ring-2 focus:ring-[var(--dt-focus-ring)]">
-          <option v-for="size in pageSizes" :key="size" :value="size">{{ t('pageSize', { size }) }}</option>
-        </select>
-
-        <span class="hidden text-xs text-gray-500 sm:inline">{{ resultsText }}</span>
+    <!-- Empty: outside the scrolling table, so it stays centred in the visible card width -->
+    <div v-if="isEmpty && !loading" class="px-4 py-8 text-center" data-dt-empty>
+      <div class="mx-auto flex size-9 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
+        <TableCellsIcon aria-hidden="true" class="size-5" />
       </div>
 
-      <!-- Pagination controls -->
-      <nav :aria-label="t('pagination')" class="flex items-center gap-1">
-        <!-- First -->
-        <button
-          :aria-label="t('firstPage')"
-          :disabled="!table.getCanPreviousPage()"
-          class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
-          type="button"
-          @click="goToFirst">
-          <ChevronDoubleLeftIcon aria-hidden="true" class="size-3.5" />
-        </button>
+      <p class="mt-2.5 text-sm font-semibold text-gray-900">{{ emptyTitle }}</p>
 
-        <!-- Previous -->
-        <button
-          :aria-label="t('previousPage')"
-          :disabled="!table.getCanPreviousPage()"
-          class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
-          type="button"
-          @click="goToPrevious">
-          <ChevronLeftIcon aria-hidden="true" class="size-4" />
-        </button>
+      <p v-if="emptyHint" class="mt-0.5 text-[13px] text-gray-600">{{ emptyHint }}</p>
 
-        <!-- Page numbers -->
-        <div class="flex items-center gap-1">
-          <button
-            v-for="page in visiblePages"
-            :key="page"
-            :aria-current="page === table.getState().pagination.pageIndex ? 'page' : undefined"
-            :class="[
-              'inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors',
-
-              page === table.getState().pagination.pageIndex
-                ? 'bg-[var(--dt-accent-strong)] text-[var(--dt-accent-fg)] shadow-sm'
-                : 'text-gray-600 hover:bg-white hover:text-[var(--dt-accent-strong)]',
-            ]"
-            type="button"
-            @click="gotoPage(page)">
-            {{ page + 1 }}
-          </button>
-        </div>
-
-        <!-- Next -->
-        <button
-          :aria-label="t('nextPage')"
-          :disabled="!table.getCanNextPage()"
-          class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
-          type="button"
-          @click="goToNext">
-          <ChevronRightIcon aria-hidden="true" class="size-4" />
-        </button>
-
-        <!-- Last -->
-        <button
-          :aria-label="t('lastPage')"
-          :disabled="!table.getCanNextPage()"
-          class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
-          type="button"
-          @click="goToLast">
-          <ChevronDoubleRightIcon aria-hidden="true" class="size-3.5" />
-        </button>
-      </nav>
+      <div v-if="$slots.empty" class="mt-1.5">
+        <slot name="empty" :clear-search="clearSearch" :query="searchQuery" />
+      </div>
     </div>
+
+    <!-- Pagination -->
+    <DtPager
+      v-if="!loading && table.getPrePaginationRowModel().rows.length > 0"
+      :format-number="formatCount"
+      :mode="pagination"
+      :page-sizes="pageSizes"
+      :parts="parts"
+      :t="t"
+      :table="table" />
   </div>
 </template>

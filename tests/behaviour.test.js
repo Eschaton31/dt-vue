@@ -200,7 +200,63 @@ describe('pagination', () => {
   it('offers the configured page sizes', () => {
     const wrapper = mountTable({ pageSizes: [5, 500] })
 
-    expect(wrapper.findAll('select option').map((option) => option.text())).toEqual(['Show 5', 'Show 500'])
+    expect(wrapper.findAll('select option').map((option) => option.text())).toEqual(['5', '500'])
+  })
+
+  it('formats page sizes with the table locale', () => {
+    const wrapper = mountTable({ pageSizes: [10, 1000] })
+
+    expect(wrapper.findAll('select option').map((option) => option.text())).toEqual(['10', '1,000'])
+  })
+
+  it('names the page-size select with a visible Rows label', () => {
+    const wrapper = mountTable()
+
+    const select = wrapper.find('nav select')
+    const label = wrapper.find('nav label')
+
+    expect(label.text()).toBe('Rows')
+    expect(label.attributes('for')).toBe(select.attributes('id'))
+    expect(select.attributes('aria-label')).toBeUndefined()
+  })
+
+  it('draws the page-size select as a compact chip with its own chevron', () => {
+    const wrapper = mountTable()
+
+    const select = wrapper.find('nav select')
+    const icon = select.element.parentElement.querySelector('svg')
+
+    expect(select.classes()).toEqual(expect.arrayContaining(['appearance-none', 'w-auto', 'pr-7']))
+    expect(icon).not.toBeNull()
+    expect(icon.getAttribute('aria-hidden')).toBe('true')
+    expect(icon.getAttribute('class')).toEqual(expect.stringContaining('size-4'))
+    expect(icon.getAttribute('class')).toEqual(expect.stringContaining('text-gray-500'))
+    expect(icon.getAttribute('class')).toEqual(expect.stringContaining('pointer-events-none'))
+    expect(icon.getAttribute('class')).toEqual(expect.stringContaining('absolute'))
+  })
+
+  it('gives each table its own page-size select id', () => {
+    const first = mountTable().find('nav select').attributes('id')
+    const second = mountTable().find('nav select').attributes('id')
+
+    expect(first).not.toBe(second)
+  })
+
+  it('lets the labels reword the range', () => {
+    const wrapper = mountTable({ labels: { range: '{from} hanggang {to} sa {total}', rowsPerPage: 'Hilera' } })
+
+    expect(wrapper.find('nav').text()).toContain('1 hanggang 3 sa 3')
+    expect(wrapper.find('nav label').text()).toBe('Hilera')
+  })
+
+  it('bolds the range numbers and lines them up', () => {
+    const wrapper = mountTable()
+
+    const numbers = wrapper.findAll('nav span.font-semibold')
+
+    expect(numbers.map((node) => node.text())).toEqual(['1', '3'])
+    expect(numbers[0].classes()).toContain('text-gray-900')
+    expect(wrapper.find('nav span.tabular-nums').exists()).toBe(true)
   })
 })
 
@@ -233,7 +289,7 @@ describe('labels', () => {
       slots: { default: () => [nameColumn()] },
     })
 
-    expect(wrapper.find('tbody').text()).toContain('Walang laman')
+    expect(wrapper.find('[data-dt-empty]').text()).toContain('Walang laman')
   })
 })
 

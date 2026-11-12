@@ -4,7 +4,7 @@ import './styles.css'
 
 export { DtColumn, DtTable }
 
-export { DEFAULT_HEATMAP_SCALE, heatmap } from './lib/heatmap.js'
+export { DEFAULT_HEATMAP_SCALE, bands, heatmap } from './lib/heatmap.js'
 export { createFormatter } from './lib/format.js'
 
 export default {
