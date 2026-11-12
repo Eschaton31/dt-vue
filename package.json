@@ -1,6 +1,6 @@
 {
   "name": "dt-vue",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Declarative Vue 3 data table built on TanStack Table — sorting, grouping, totals, nested rows, range selection and Excel export.",
   "type": "module",
   "license": "MIT",
